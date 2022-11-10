@@ -1,0 +1,508 @@
+import pandas as pd, cx_Oracle, os, datetime, re, sys, subprocess as sp, smtplib, os.path, matplotlib.pyplot as plt, xlsxwriter
+from os.path import isfile, join
+from datetime import date, timedelta
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import COMMASPACE, formatdate
+from openpyxl import Workbook
+from openpyxl import load_workbook as lw
+
+
+sql_files = ['gcc_managed.sql','gcc_info.sql','ddi_inc.sql','ddi_rfc.sql','ddi_rfc_mig.sql','ecs_inc.sql','ecs_rfc.sql','ecs_rfc_mig.sql','lan_inc.sql','wan_inc.sql','uc_inc.sql','uc_rfc.sql']
+today_start = date.today() - datetime.timedelta(days=1)
+today = datetime.datetime.now()
+today_end = today.replace(hour=23, minute=59, second=59)
+#today = datetime.date.today()
+saturday = today + datetime.timedelta( (5-today.weekday()) % 7 )
+sunday = today + datetime.timedelta( (6-today.weekday()) % 7 )
+saturday_start = saturday.replace(hour=00, minute=00, second=00)
+sunday_end = sunday.replace(hour=23, minute=59, second=59)
+
+
+
+def send_mail(send_from, send_to, subject, text, files=None,server="127.0.0.1"):
+    msg = MIMEMultipart()
+    msg['From'] = send_from
+    msg['To'] = send_to
+    #msg['Cc'] = cc_to
+    msg['Date'] = formatdate(localtime=True)
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(text))
+
+    if files:
+      for f in files:
+        with open(f, "rb") as file:
+            part = MIMEApplication(
+                file.read(),
+                Name=os.path.basename(f)
+            )
+        #after the file is closed
+        part['Content-Disposition'] = 'attachment; filename="%s"' % os.path.basename(f)
+        msg.attach(part)
+
+    smtp = smtplib.SMTP(server)
+    #smtp.sendmail(send_from, send_to, msg.as_string())
+    smtp.send_message(msg)
+    smtp.close()
+
+
+
+def run_sql(sql,path,sql_file_name):
+  con = cx_Oracle.connect('BAPITSM/PrD#biss#0710@itsmprod.pfizer.com')
+  file_name = "Management_Daily_Report_"+datetime.date.strftime(today_start, "%m-%d-%Y")+"_"+datetime.date.strftime(today_end, "%m-%d-%Y")+".xlsx"
+  try:
+
+    if sql_file_name == "gcc_managed.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+      #data = pd.DataFrame({"Names" : ["John","Deep","Julia","Kate","Sandy"],
+      #               "MonthSales" : [25,30,35,40,45]})
+
+      if not data.empty:
+        sheet = "GCC"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        ws = wb[sheet]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+
+      else:
+        print("GCC Managed SQL returned empty data !!!")
+
+    if sql_file_name == "gcc_info.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+
+      if not data.empty:
+        sheet = "GCC"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        #Selects work sheet from workbook
+        ws = wb[sheet]
+
+        #if 'Sheet' in wb.sheetnames:
+        #  del wb["Sheet"]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet,startrow=ws.max_row+5)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("GCC Informational SQL returned empty data !!!")
+
+    if sql_file_name == "ddi_inc.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+      #data = pd.DataFrame({"Names" : ["John","Deep","Julia","Kate","Sandy"],
+      #               "MonthSales" : [25,30,35,40,45]})
+
+      if not data.empty:
+        sheet = "DDI"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        ws = wb[sheet]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("INC DDI SQL returned empty data !!!")
+
+    if sql_file_name == "ddi_rfc.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+
+      if not data.empty:
+        sheet = "DDI"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        #Selects work sheet from workbook
+        ws = wb[sheet]
+
+        #if 'Sheet' in wb.sheetnames:
+        #  del wb["Sheet"]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet,startrow=ws.max_row+5)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("RFC DDI SQL returned empty data !!!")
+
+    if sql_file_name == "ddi_rfc_mig.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+
+      if not data.empty:
+        sheet = "DDI"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        #Selects work sheet from workbook
+        ws = wb[sheet]
+
+        #if 'Sheet' in wb.sheetnames:
+        #  del wb["Sheet"]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet,startrow=ws.max_row+5)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("RFC Migration DDI SQL returned empty data !!!")
+
+    if sql_file_name == "ecs_inc.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+
+      if not data.empty:
+        sheet = "ECS"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        ws = wb[sheet]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("INC ECS SQL returned empty data !!!")
+
+    if sql_file_name == "ecs_rfc.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+
+      if not data.empty:
+        sheet = "ECS"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        #Selects work sheet from workbook
+        ws = wb[sheet]
+
+        #if 'Sheet' in wb.sheetnames:
+        #  del wb["Sheet"]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet,startrow=ws.max_row+5)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("RFC ECS SQL returned empty data !!!")
+
+    if sql_file_name == "ecs_rfc_mig.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+
+      if not data.empty:
+        sheet = "ECS"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        #Selects work sheet from workbook
+        ws = wb[sheet]
+
+        #if 'Sheet' in wb.sheetnames:
+        #  del wb["Sheet"]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet,startrow=ws.max_row+5)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("RFC Migration ECS SQL returned empty data !!!")
+
+    if sql_file_name == "lan_inc.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+
+      if not data.empty:
+        sheet = "LAN"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        ws = wb[sheet]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("INC LAN SQL returned empty data !!!")
+
+    if sql_file_name == "wan_inc.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+
+      if not data.empty:
+        sheet = "WAN"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        ws = wb[sheet]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("INC WAN SQL returned empty data !!!")
+
+    if sql_file_name == "uc_inc.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+
+      if not data.empty:
+        sheet = "UC"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        ws = wb[sheet]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("INC UC SQL returned empty data !!!")
+
+    if sql_file_name == "uc_rfc.sql":
+      data = pd.read_sql(sql, con)
+      con.close()
+
+      if not data.empty:
+        sheet = "UC"
+        df = pd.read_excel(os.path.join(path,file_name), sheet_name=sheet)
+        #Contains full file path
+        file = os.path.join(path,file_name)
+        #Loads file into a workbook
+        wb = lw(filename=file)
+        #Loads all current data of workbook into a writer
+        writer = pd.ExcelWriter(os.path.join(path,file_name), engine='openpyxl')
+        #Loads all current data of workbook into a writer
+        writer.book = wb
+        #Selects work sheet from workbook
+        ws = wb[sheet]
+
+        #if 'Sheet' in wb.sheetnames:
+        #  del wb["Sheet"]
+        del wb[sheet]
+        df.to_excel(writer,index=False,header=True,sheet_name=sheet)
+        data.to_excel(writer,index=False,header=True,sheet_name=sheet,startrow=ws.max_row+5)
+        #Saves and closes writer
+        writer.save()
+        writer.close()
+
+        #Saves and closes workbook
+        wb.save(filename=file)
+        wb.close()
+      else:
+        print("RFC UC SQL returned empty data !!!")
+
+
+  except cx_Oracle.DatabaseError as e:
+    #print("Cannot connect to DB. Please check if DB is available.")
+    print(e)
+
+
+
+#Main
+if __name__ == "__main__":
+
+  emaillst = "guillermoantonio.cortes@pfizer.com"
+  sql_files_path = "sql/"
+  outputdir = "output/"
+  #print(datetime.date.strftime(today_start, "%m-%d-%Y %H:%M:%S"))
+
+  sheets = ['GCC','DDI','ECS','LAN','WAN','UC']
+  #create empty .xlsx file
+  file = "Management_Daily_Report_"+datetime.date.strftime(today_start, "%m-%d-%Y")+"_"+datetime.date.strftime(today_end, "%m-%d-%Y")+".xlsx"
+  wb = Workbook()
+  for sheet in sheets:
+    wb.create_sheet(sheet)
+  if 'Sheet' in wb.sheetnames:
+    del wb["Sheet"]
+  wb.save(filename = os.path.join(outputdir,file))
+
+  #sql files validation
+  validation = 0
+  list_sql_files = os.listdir(sql_files_path)
+  for sql_file in sql_files:
+    if sql_file not in list_sql_files:
+      print("File: "+sql_file+" missing. Please check SQL files directory.")
+      validation = validation + 1
+  if validation == 0:
+    print("SQL files validated succesfully !!!")
+  else:
+    sys.exit(1)
+
+
+  for sql_file in sql_files:
+    with open(os.path.join(sql_files_path,sql_file), 'r') as f:
+      sqlquery = f.read()
+      sqlquery = sqlquery.replace(";", "")
+    f.close()
+    if sql_file == "gcc_managed.sql":
+      run_sql(str(sqlquery),outputdir,sql_file)
+    if sql_file == "gcc_info.sql":
+      run_sql(str(sqlquery),outputdir,sql_file)
+"""
+    if sql_file == "ddi_inc.sql":
+      run_sql(str(sqlquery).format(datetime.date.strftime(today_start, "%m-%d-%Y %H:%M:%S"),datetime.date.strftime(today_end, "%m-%d-%Y %H:%M:%S")),outputdir,sql_file)
+    if sql_file == "ddi_rfc.sql":
+      run_sql(str(sqlquery).format(datetime.date.strftime(today_end, "%m-%d-%Y %H:%M:%S")),outputdir,sql_file)
+    if sql_file == "ddi_rfc_mig.sql":
+      run_sql(str(sqlquery).format(datetime.date.strftime(saturday_start, "%m-%d-%Y %H:%M:%S"),datetime.date.strftime(sunday_end, "%m-%d-%Y %H:%M:%S")),outputdir,sql_file)
+    if sql_file == "ecs_inc.sql":
+      run_sql(str(sqlquery).format(datetime.date.strftime(today_start, "%m-%d-%Y %H:%M:%S"),datetime.date.strftime(today_end, "%m-%d-%Y %H:%M:%S")),outputdir,sql_file)
+    if sql_file == "ecs_rfc.sql":
+      run_sql(str(sqlquery).format(datetime.date.strftime(today_end, "%m-%d-%Y %H:%M:%S")),outputdir,sql_file)
+    if sql_file == "ecs_rfc_mig.sql":
+      run_sql(str(sqlquery).format(datetime.date.strftime(saturday_start, "%m-%d-%Y %H:%M:%S"),datetime.date.strftime(sunday_end, "%m-%d-%Y %H:%M:%S")),outputdir,sql_file)
+    if sql_file == "lan_inc.sql":
+      run_sql(str(sqlquery).format(datetime.date.strftime(today_start, "%m-%d-%Y %H:%M:%S"),datetime.date.strftime(today_end, "%m-%d-%Y %H:%M:%S")),outputdir,sql_file)
+    if sql_file == "wan_inc.sql":
+      run_sql(str(sqlquery).format(datetime.date.strftime(today_start, "%m-%d-%Y %H:%M:%S"),datetime.date.strftime(today_end, "%m-%d-%Y %H:%M:%S")),outputdir,sql_file)
+    if sql_file == "uc_inc.sql":
+      run_sql(str(sqlquery).format(datetime.date.strftime(today_start, "%m-%d-%Y %H:%M:%S"),datetime.date.strftime(today_end, "%m-%d-%Y %H:%M:%S")),outputdir,sql_file)
+    if sql_file == "uc_rfc.sql":
+      run_sql(str(sqlquery).format(datetime.date.strftime(today_end, "%m-%d-%Y %H:%M:%S")),outputdir,sql_file)
+"""
